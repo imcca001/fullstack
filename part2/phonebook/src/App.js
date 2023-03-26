@@ -1,42 +1,18 @@
-import { render } from '@testing-library/react'
 import { useState, useEffect } from 'react'
+
+import Persons from './components/Persons'
+import PersonForm from './components/PersonForm'
+import Filter from './components/Filter'
+import Notification from './components/Notification'
+
 import noteService from './services/notes'
-
-
-const Book = ({ persons, remove }) => {
-  return (
-    <div>
-    <ul>
-      {persons.map(person =>
-        <li key={person.id}>{person.name} {person.number} <button id={person.id} onClick={remove}>Delete</button></li> 
-        )}
-    </ul>
-    </div>
-  )
-}
-
-const Form = ({ newName, newNumber, addNames, handleNameChange, handleNumberChange }) => {
-  return (
-    <div>
-      <form onSubmit={addNames}>
-      <div>
-        name: <input value={newName} onChange={handleNameChange} />
-      </div>
-      <div>
-        number: <input value={newNumber} onChange={handleNumberChange} />
-      </div>
-      <div>
-        <button type="submit">add</button>
-      </div>
-    </form>
-    </div>
-  )
-}
 
 const App = () => {
   const [persons, setPersons] = useState([])
-  const [newName, setNewName] = useState('a new name...')
-  const [newNumber, setNewNumber] = useState('a new number')
+  const [newName, setNewName] = useState('')
+  const [newNumber, setNewNumber] = useState('')
+  const [filter, setFilter] = useState('')
+  const [info, setInfo] = useState({ message: null })
 
   useEffect(() => {
     noteService
@@ -46,6 +22,21 @@ const App = () => {
       })
   }, [])
 
+  const notifyWith = (message, type='info') => {
+    setInfo({
+      message, type
+    })
+
+    setTimeout(() => {
+      setInfo({ message: null} )
+    }, 3000)
+  }
+
+  const cleanForm = () => {
+    setNewName('')
+    setNewNumber('') 
+  }
+
   const exists = (name) => {
     let inBook = persons.map(person => person.name)
                    .some(name => name.toLowerCase() === newName.toLowerCase())
@@ -53,61 +44,72 @@ const App = () => {
     return inBook
   }
 
-  const handleNameChange = (event) => {
-    console.log(event.target.value)
-    setNewName(event.target.value)
-  }
-  
-  const handleNumberChange = (event) => {
-    console.log(event.target.value)
-    setNewNumber(event.target.value)
-  }
-  
   const addNames = (event) => {
-      event.preventDefault()
-      const nameObject = {
-        name: newName,
-        number: newNumber,
-      }
-  
-      if (!exists(newName)) {
-          noteService
-            .create(nameObject)
-            .then(response => {
-              setPersons(persons.concat(response.data))
-              setNewName('a new name...')
-              setNewNumber('a new number...')
-            })
-        }
-      else {
-        alert(`${newName} already exists in phonebook`)
-      } 
+    event.preventDefault()
+    const nameObject = {
+      name: newName,
+      number: newNumber,
     }
-  
-    const removeNames = (event) => {
-      event.preventDefault()
-      let id = event.target.id
-      console.log(id)
-      let name = persons.filter(p => p.id === id)
-      console.log(name)
-      alert(`Delete ${name}`)
 
+    // if (!exists(newName)) {
+        noteService
+          .create(nameObject)
+          .then(response => {
+            setPersons(persons.concat(response.data))
+            notifyWith(`${nameObject.name} added!`)
+            cleanForm()
+          })
+          .catch(error => {
+            notifyWith(`${error.response.data.error}`)
+            console.log(error.response.data.error)
+          })
+    //   }
+    // else {
+    //   alert(`${newName} already exists in phonebook`)
+    // } 
+  }
+
+  const removeNames = (person) => {
+    const ok = window.confirm(`remove ${person.name} from phonebook`)
+    if ( ok ) {
       noteService 
-        .remove(id)
-        .then(response => {
-          setPersons(persons.filter(p => p.id !== id))
-          setNewName('a new name...')
-          setNewNumber('a new number...')
-        })
+      .remove(person.id)
+      .then(() => {
+        setPersons(persons.filter(p => p.id !== person.id))
+        alert(`number of ${person.name} deleted! `)
+      })
     }
+  }
+
+  const byFilterField =
+    p => p.name.toLowerCase().includes(filter.toLowerCase())
+
+  const personsToShow = filter ? persons.filter(byFilterField) : persons
 
   return (
     <div>
       <h2>Phonebook</h2>
-      <Form newName={newName} newNumber={newNumber} addNames={addNames} handleNameChange={handleNameChange} handleNumberChange={handleNumberChange} />
-      <div>debug: {newName}</div>
-      <h2>Numbers</h2>
-      <Book persons={persons} remove={removeNames} />
+
+      <Notification info={info} />
+{/* 
+      <Filter filter={filter} setFilter={setFilter} /> */}
+      
+      <h3>Add a new</h3>
+
+      <PersonForm 
+        addPerson={addNames}
+        newName={newName}
+        newNumber={newNumber}
+        setNewName={setNewName}
+        setNewNumber={setNewNumber}
+      />
+
+      <h3>Phone numbers</h3>
+
+      <Persons
+        persons={personsToShow}
+        removePerson={removeNames}
+      />
     </div>
   )
 }
